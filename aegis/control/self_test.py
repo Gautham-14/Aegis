@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 from copy import deepcopy
+from pathlib import Path
 from unittest.mock import patch
 
 from aegis.control import (
@@ -210,7 +211,8 @@ def worker():
 def run_self_test(include_coding=False):
     from aegis import config
 
-    with tempfile.TemporaryDirectory(prefix="aegis-adversarial-") as directory:
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    with tempfile.TemporaryDirectory(prefix="aegis-adversarial-", dir=temp_root) as directory:
         env = {**os.environ, "AEGIS_DATA_DIR": directory}
         process = subprocess.run(
             [sys.executable, "-m", "aegis.control.self_test", "--worker"]

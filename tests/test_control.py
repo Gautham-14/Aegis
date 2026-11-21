@@ -1,6 +1,8 @@
 """Security boundary regressions for the documented sovereign prototype."""
 
 import json
+import subprocess
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -451,6 +453,34 @@ def test_evidence_calculation_and_partial_support_are_distinct():
         "quote": "A measured value",
     }
     assert verify_claim(partial, sources, disclosed)["state"] == "PARTIALLY SUPPORTED"
+
+
+def test_isolated_self_test_uses_canonical_temp_root(monkeypatch, tmp_path):
+    from aegis.control import self_test
+
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(canonical, target_is_directory=True)
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(alias))
+
+    captured = {}
+
+    def fake_run(args, **kwargs):
+        captured["env"] = kwargs["env"]
+        captured["dir"] = kwargs["env"]["AEGIS_DATA_DIR"]
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout='{"tests": [], "tests_total": 0, "all_passed": true}',
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    self_test.run_self_test()
+
+    assert captured["dir"].startswith(str(canonical))
+    assert not captured["dir"].startswith(str(alias))
 
 
 def test_isolated_self_test_endpoint_is_json_serializable_and_does_not_seed():
