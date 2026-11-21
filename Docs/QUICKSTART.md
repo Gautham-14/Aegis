@@ -13,8 +13,14 @@ dependencies or models automatically. Set up from a reviewed local wheelhouse
 and its separate SHA-256 manifest:
 
 ```text
-python aegis.py setup <wheelhouse-directory> <hash-manifest> --profile core
+python aegis.py setup <wheelhouse-directory> <hash-manifest> --profile cli
 ```
+
+For the interactive command menu and input frame, acquire wheels using
+`requirements-cli.lock` and use `--profile cli`. The `core` profile uses
+`requirements.lock` and provides basic text input. Use `--plain` to explicitly
+select basic input. In the interactive console, `/` opens the command menu;
+arrow keys select a command and Tab inserts it. `/register` handles registration.
 
 Use `--profile media` for image decoding, or `full` for optional local embeddings
 and tokenization. Wheel files must match the operating system, architecture and

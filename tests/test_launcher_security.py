@@ -1,12 +1,26 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from starlette.testclient import TestClient
 
 import run_aegis
 from aegis.api.server import app
+
+
+def test_source_launcher_works_with_isolated_python(tmp_path):
+    launcher = Path(__file__).resolve().parents[1] / "run_aegis.py"
+    result = subprocess.run(
+        [sys.executable, "-I", str(launcher), "--help"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Aegis Sovereign AI Runtime" in result.stdout
 
 
 @pytest.mark.parametrize("host", ["0.0.0.0", "::", "example.com", "192.168.1.10"])

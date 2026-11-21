@@ -121,7 +121,7 @@ def parse_register_args(line: str) -> tuple[str | None, str | None, bool]:
     except ValueError:
         tokens = line.split()
 
-    # Drop leading command (/register or /signup)
+    # Drop leading /register command.
     args = tokens[1:] if len(tokens) > 1 else []
 
     if args and args[0].lower() in {"help", "--help", "-h", "/?"}:

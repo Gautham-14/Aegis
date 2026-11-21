@@ -227,6 +227,50 @@ def test_interactive_shell_without_prompt_toolkit_uses_basic_input(monkeypatch):
     assert cli.shell(client, cli.build_parser()) == 0
 
 
+def test_interactive_input_frame_and_slash_menu(monkeypatch):
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.output import DummyOutput
+
+    original_init = PromptSession.__init__
+
+    def initialize(self, *args, **kwargs):
+        original_init(self, *args, output=DummyOutput(), **kwargs)
+
+    def prompt(self, *args, **kwargs):
+        for text in ("/", " /"):
+            commands = [
+                item.text
+                for item in self.completer.get_completions(Document(text), CompleteEvent())
+            ]
+            assert "/register" in commands
+            assert "/signup" not in commands
+        assert self.complete_while_typing
+        children = self.layout.container.children
+        assert children[0].char == children[-1].char == "─"
+        return "/exit"
+
+    monkeypatch.setattr(PromptSession, "__init__", initialize)
+    monkeypatch.setattr(PromptSession, "prompt", prompt)
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
+    client = Mock(url=cli.BASE_URL, session=SimpleNamespace(value={}))
+    assert cli.shell(client, cli.build_parser()) == 0
+
+
+def test_removed_signup_does_not_register(monkeypatch, capsys):
+    from aegis.operator import shell as operator_shell
+
+    registration = Mock()
+    monkeypatch.setattr(operator_shell, "register_workflow", registration)
+    client = Mock(url=cli.BASE_URL, session=SimpleNamespace(value={}))
+    lines(monkeypatch, ["/signup", "/signup alice", "/exit"])
+    assert cli.shell(client, cli.build_parser(), plain=True) == 0
+    registration.assert_not_called()
+    assert "invalid choice" in capsys.readouterr().err
+
+
 def test_interactive_shell_clear_command(monkeypatch):
     monkeypatch.setitem(cli.sys.modules, "prompt_toolkit", None)
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)

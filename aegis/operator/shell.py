@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import shlex
-import shutil
 import subprocess
 import sys
 
@@ -71,6 +70,7 @@ def shell(client, parser, *, plain=False, context):
         try:
             from prompt_toolkit import PromptSession
             from prompt_toolkit.completion import Completer, Completion
+            from prompt_toolkit.layout import HSplit, Window
             from prompt_toolkit.lexers import PygmentsLexer
             from prompt_toolkit.shortcuts import CompleteStyle
             from prompt_toolkit.styles import Style
@@ -147,7 +147,7 @@ def shell(client, parser, *, plain=False, context):
                 self.commands = commands_dict
 
             def get_completions(self, document, complete_event):
-                text = document.text_before_cursor
+                text = document.text_before_cursor.lstrip()
                 if text.startswith("/"):
                     word = text.lstrip("/")
                     for cmd, desc in self.commands.items():
@@ -161,7 +161,6 @@ def shell(client, parser, *, plain=False, context):
 
         aegis_commands = {
             "register": "New user registration & onboarding guidance (or sign-up)",
-            "signup": "Alias for /register",
             "login": "Sign in locally; password is prompted securely",
             "goal": "Autonomous thorough goal execution & milestone tracking (Antigravity/Codex style)",
             "demo": "Run explicitly enabled deterministic control fixture (Capsule -> Attestation -> RAG -> Cache -> Tripwire -> Receipt)",
@@ -200,8 +199,21 @@ def shell(client, parser, *, plain=False, context):
         )
 
         command_completer = SlashCommandCompleter(aegis_commands)
-        pt_session = PromptSession(
-            completer=command_completer, complete_style=CompleteStyle.MULTI_COLUMN, style=style
+
+        class FramedPromptSession(PromptSession):
+            def _create_layout(self):
+                layout = super()._create_layout()
+                layout.container = HSplit(
+                    [Window(height=1, char="─"), layout.container, Window(height=1, char="─")]
+                )
+                return layout
+
+        pt_session = FramedPromptSession(
+            completer=command_completer,
+            complete_while_typing=True,
+            complete_style=CompleteStyle.COLUMN,
+            reserve_space_for_menu=0,
+            style=style,
         )
 
     while True:
@@ -215,15 +227,12 @@ def shell(client, parser, *, plain=False, context):
 
         try:
             if has_pt:
-                cols = shutil.get_terminal_size().columns
                 lease_id = selected.get("id", "NOT_SELECTED")
                 model_name = selected.get("model", "NOT_SELECTED")
                 print(
                     f" 🛡 {model_name} │ Lease: {lease_id} │ Transport: LOCAL_API │ Authorization: USE_CONTEXT"
                 )
-                print("─" * cols)
                 line = pt_session.prompt("❯ ", lexer=PygmentsLexer(MarkdownLexer)).strip()
-                print("─" * cols)
             else:
                 line = input(f"aegis[{label}]> ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -248,11 +257,7 @@ def shell(client, parser, *, plain=False, context):
         try:
             if line == "/compose":
                 result = compose(client)
-            elif (
-                line in {"/register", "/signup"}
-                or line.startswith("/register ")
-                or line.startswith("/signup ")
-            ):
+            elif line == "/register" or line.startswith("/register "):
                 result = register_workflow(
                     line, client, console=console, styled=styled, plain=plain
                 )

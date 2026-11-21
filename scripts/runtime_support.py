@@ -8,6 +8,7 @@ from pathlib import Path
 CORE_MODULES = ("fastapi", "uvicorn", "pydantic", "psutil", "cryptography", "rich")
 PROFILES = {
     "core": CORE_MODULES,
+    "cli": (*CORE_MODULES, "prompt_toolkit"),
     "media": (*CORE_MODULES, "PIL"),
     "full": (*CORE_MODULES, "PIL", "tokenizers", "sentence_transformers"),
 }

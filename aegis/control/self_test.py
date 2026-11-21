@@ -210,7 +210,9 @@ def worker():
 def run_self_test(include_coding=False):
     from aegis import config
 
-    with tempfile.TemporaryDirectory(prefix="aegis-adversarial-") as directory:
+    with tempfile.TemporaryDirectory(
+        prefix="aegis-adversarial-", dir=os.path.realpath(tempfile.gettempdir())
+    ) as directory:
         env = {**os.environ, "AEGIS_DATA_DIR": directory}
         process = subprocess.run(
             [sys.executable, "-m", "aegis.control.self_test", "--worker"]
@@ -223,7 +225,10 @@ def run_self_test(include_coding=False):
         )
         if process.returncode:
             store.event("SELF_TEST_FAILURE")
-            raise RuntimeError("Isolated self-test worker failed")
+            detail = process.stderr.strip() or process.stdout.strip()
+            raise RuntimeError(
+                "Isolated self-test worker failed" + (f": {detail}" if detail else "")
+            )
         result = json.loads(process.stdout)
     for item in result["tests"]:
         item["event_id"] = store.event(

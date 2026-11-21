@@ -36,7 +36,7 @@ def main(argv=None):
     )
     setup.add_argument("wheelhouse", nargs="?")
     setup.add_argument("manifest", nargs="?")
-    setup.add_argument("--profile", choices=["core", "media", "full"], default="core")
+    setup.add_argument("--profile", choices=["core", "cli", "media", "full"], default="core")
     cli = commands.add_parser(
         "cli", help="Run any CLI command using the dedicated environment (does not start a server)"
     )

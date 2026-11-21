@@ -22,7 +22,7 @@ a named `org.aegis.api` virtio character device accessible to the restricted API
 identity, and `python -m aegis.vm.guest` in the API network namespace. Provision
 and independently review these inside the guest using SECURITY_IMPLEMENTATION.md.
 There is no unattended guest-image builder or accepted production bundle.
-Source-only provisioning examples now live in [deploy/vm/README.md](deploy/vm/README.md):
+Source-only provisioning examples now live in [deploy/vm/README.md](../deploy/vm/README.md):
 a restricted bridge service, narrowly scoped virtio ownership rule and a
 schema-1 host policy with zero hashes that intentionally fail validation.
 No example was installed, enabled or run on this device.

@@ -34,7 +34,7 @@ The tests ran on the uncommitted working tree based on commit
 `7a5b874430602be28dd05cb7f83f9276dd33e76c`. Its verified source SHA-256 is
 `74309bf2f8dff4f55762c60574b0ad08be2c0036227c34c412a01de1e5726da1`.
 The lock hashes below are unchanged. Machine-readable evidence is retained in
-[verification/latest.json](verification/latest.json); full generated reports
+[verification/latest.json](../verification/latest.json); full generated reports
 are ignored under `.audit-tmp/completion-final-20261010/`:
 
 - `results.xml`: `d2a124e1a2be9ba23753430b16b3ddefbb6a3365fb13beafabe65a2eb347ded9`.
