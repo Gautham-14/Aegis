@@ -223,7 +223,11 @@ def run_self_test(include_coding=False):
         )
         if process.returncode:
             store.event("SELF_TEST_FAILURE")
-            raise RuntimeError("Isolated self-test worker failed")
+            detail = process.stderr.strip()
+            message = "Isolated self-test worker failed"
+            if detail:
+                message = f"{message}: {detail}"
+            raise RuntimeError(message)
         result = json.loads(process.stdout)
     for item in result["tests"]:
         item["event_id"] = store.event(
