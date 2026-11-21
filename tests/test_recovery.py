@@ -2,6 +2,7 @@
 
 import os
 import sqlite3
+from unittest.mock import patch
 
 import pytest
 
@@ -65,3 +66,46 @@ def test_backup_rejects_wrong_passphrase_tampering_and_bad_receipt(tmp_path):
         recovery.create_backup(
             tmp_path.parent / f"{tmp_path.name}-bad.aegis-backup", "a-long-test-backup-passphrase"
         )
+
+
+def test_backup_validation_rejects_invalid_inputs(tmp_path):
+    with pytest.raises(ValueError, match="16-256"):
+        recovery._key("short", b"0123456789abcdef")
+
+    init_db()
+    store.init_control()
+    config.DB_PATH.unlink()
+    with pytest.raises(ValueError, match="No Aegis database"):
+        recovery._db_snapshot()
+
+    with pytest.raises(ValueError, match="key or database"):
+        recovery._valid_database(b"fixture", b"x")
+
+    init_db()
+    store.init_control()
+    inside_live_data = config.DATA_DIR / "archive.aegis-backup"
+    with pytest.raises(ValueError, match="outside"):
+        recovery.create_backup(inside_live_data, "a-long-test-backup-passphrase")
+    with pytest.raises(ValueError, match="directory does not exist"):
+        recovery.create_backup(
+            tmp_path.parent / "missing-recovery-parent" / "archive.aegis-backup",
+            "a-long-test-backup-passphrase",
+        )
+
+
+def test_backup_write_cleanup_and_missing_live_key(tmp_path):
+    init_db()
+    store.init_control()
+    destination = tmp_path.parent / f"{tmp_path.name}.aegis-backup"
+    with (
+        patch.object(recovery, "_payload", return_value=b"fixture"),
+        patch.object(recovery, "restrict_permissions", side_effect=RuntimeError("write failed")),
+    ):
+        with pytest.raises(RuntimeError, match="write failed"):
+            recovery.create_backup(destination, "a-long-test-backup-passphrase")
+    assert not destination.exists()
+
+    for name in ("control.key", "control.key.dpapi"):
+        (config.DATA_DIR / name).unlink(missing_ok=True)
+    with pytest.raises(ValueError, match="Live control key is missing"):
+        recovery._payload()
