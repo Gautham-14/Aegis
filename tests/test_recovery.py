@@ -65,3 +65,33 @@ def test_backup_rejects_wrong_passphrase_tampering_and_bad_receipt(tmp_path):
         recovery.create_backup(
             tmp_path.parent / f"{tmp_path.name}-bad.aegis-backup", "a-long-test-backup-passphrase"
         )
+
+
+def test_recovery_rejects_invalid_keys_database_and_destinations(tmp_path, monkeypatch):
+    with pytest.raises(ValueError, match="16-256"):
+        recovery._key("too-short", b"salt")
+    with pytest.raises(ValueError, match="invalid"):
+        recovery._valid_database(b"fixture", b"short")
+
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "missing.db")
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path / "live")
+    with pytest.raises(ValueError, match="No Aegis database"):
+        recovery._db_snapshot()
+
+    archive = config.DATA_DIR / "inside-data.aegis-backup"
+    with pytest.raises(ValueError, match="outside"):
+        recovery.create_backup(archive, "a-long-test-backup-passphrase")
+    missing_parent = tmp_path / "missing-parent" / "archive.aegis-backup"
+    with pytest.raises(ValueError, match="does not exist"):
+        recovery.create_backup(missing_parent, "a-long-test-backup-passphrase")
+
+
+def test_recovery_rejects_missing_broker_keyring_and_truncated_archives(tmp_path, monkeypatch):
+    monkeypatch.setenv("AEGIS_KEY_BROKER_SOCKET", "/tmp/aegis-broker.sock")
+    with pytest.raises(ValueError, match="separately backed-up"):
+        recovery._payload()
+
+    archive = tmp_path / "truncated.aegis-backup"
+    archive.write_bytes(recovery.MAGIC)
+    with pytest.raises(ValueError, match="truncated"):
+        recovery.verify_backup(archive, "a-long-test-backup-passphrase")
