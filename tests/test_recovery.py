@@ -65,3 +65,39 @@ def test_backup_rejects_wrong_passphrase_tampering_and_bad_receipt(tmp_path):
         recovery.create_backup(
             tmp_path.parent / f"{tmp_path.name}-bad.aegis-backup", "a-long-test-backup-passphrase"
         )
+
+
+@pytest.mark.parametrize("passphrase", ["short", "x" * 257])
+def test_backup_passphrase_bounds(passphrase):
+    with pytest.raises(ValueError, match="16-256"):
+        recovery._key(passphrase, b"x" * 16)
+
+
+def test_backup_rejects_missing_database_and_live_key(tmp_path):
+    with pytest.raises(ValueError, match="No Aegis database"):
+        recovery._db_snapshot()
+    with pytest.raises(ValueError, match="Live control key is missing"):
+        recovery._payload()
+
+
+def test_backup_rejects_invalid_destinations(tmp_path):
+    init_db()
+    store.init_control()
+    with pytest.raises(ValueError, match="outside the live"):
+        recovery.create_backup(config.DATA_DIR / "archive.backup", "a-long-test-backup-passphrase")
+    with pytest.raises(ValueError, match="does not exist"):
+        recovery.create_backup(
+            tmp_path.parent / "missing-recovery-parent" / "archive.backup",
+            "a-long-test-backup-passphrase",
+        )
+
+
+def test_decode_rejects_missing_and_truncated_archives(tmp_path):
+    missing = tmp_path / "missing.backup"
+    with pytest.raises(ValueError, match="absent"):
+        recovery.verify_backup(missing, "a-long-test-backup-passphrase")
+
+    truncated = tmp_path / "truncated.backup"
+    truncated.write_bytes(recovery.MAGIC + b"too-short")
+    with pytest.raises(ValueError, match="Unsupported or truncated"):
+        recovery.verify_backup(truncated, "a-long-test-backup-passphrase")
