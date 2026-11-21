@@ -20,7 +20,7 @@ def detect_hardware() -> Dict[str, Any]:
     physical_cores = psutil.cpu_count(logical=False) or 2
     logical_cores = psutil.cpu_count(logical=True) or 4
     try:
-        cpu_freq = psutil.cpu_freq()
+        cpu_freq = getattr(psutil, "cpu_freq", lambda: None)()
     except (NotImplementedError, OSError, AttributeError):
         cpu_freq = None
     freq_mhz = round(cpu_freq.current, 1) if (cpu_freq and cpu_freq.current is not None) else None

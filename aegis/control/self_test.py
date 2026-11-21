@@ -211,7 +211,11 @@ def run_self_test(include_coding=False):
     from aegis import config
 
     with tempfile.TemporaryDirectory(prefix="aegis-adversarial-") as directory:
-        env = {**os.environ, "AEGIS_DATA_DIR": directory}
+        env = {
+            **os.environ,
+            "AEGIS_DATA_DIR": directory,
+            "AEGIS_ENABLE_DEMO_ENDPOINTS": "1",
+        }
         process = subprocess.run(
             [sys.executable, "-m", "aegis.control.self_test", "--worker"]
             + (["--coding"] if include_coding else []),

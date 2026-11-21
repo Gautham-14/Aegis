@@ -199,7 +199,7 @@ def test_interrupted_session_reaps_owned_server(monkeypatch):
 def test_unavailable_cpu_frequency_does_not_break_non_windows_hardware(monkeypatch):
     from aegis.hardware import detector
 
-    monkeypatch.setattr(detector.psutil, "cpu_freq", Mock(side_effect=NotImplementedError))
+    monkeypatch.delattr(detector.psutil, "cpu_freq", raising=False)
     assert detector.detect_hardware()["cpu_frequency_mhz"] is None
 
 
