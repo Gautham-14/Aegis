@@ -124,7 +124,7 @@ def test_restore_files_revokes_sessions_and_requires_approval(tmp_path):
 
     with sqlite3.connect(":memory:") as db:
         db.deserialize(restored["db/aegis.db"])
-        if db.execute(
-            "SELECT COUNT(*) FROM sqlite_schema WHERE name='auth_sessions'"
-        ).fetchone()[0]:
+        if db.execute("SELECT COUNT(*) FROM sqlite_schema WHERE name='auth_sessions'").fetchone()[
+            0
+        ]:
             assert db.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0] == 0
