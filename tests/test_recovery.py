@@ -4,6 +4,7 @@ import os
 import sqlite3
 
 import pytest
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from aegis import config
 from aegis.control import store
@@ -65,3 +66,65 @@ def test_backup_rejects_wrong_passphrase_tampering_and_bad_receipt(tmp_path):
         recovery.create_backup(
             tmp_path.parent / f"{tmp_path.name}-bad.aegis-backup", "a-long-test-backup-passphrase"
         )
+
+
+@pytest.mark.parametrize("passphrase", ("too-short", "x" * 257))
+def test_backup_passphrase_bounds(passphrase):
+    with pytest.raises(ValueError, match="16-256 characters"):
+        recovery._key(passphrase, b"0" * 16)
+
+
+def test_backup_rejects_missing_database(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "missing.db")
+    with pytest.raises(ValueError, match="No Aegis database"):
+        recovery._db_snapshot()
+
+
+def test_valid_database_rejects_invalid_key_and_executable_schema():
+    with sqlite3.connect(":memory:") as db:
+        db.execute("CREATE TABLE control_receipts(sequence INTEGER)")
+        db.execute("CREATE TABLE control_head(singleton INTEGER)")
+        db.execute("CREATE TRIGGER denied AFTER INSERT ON control_receipts BEGIN SELECT 1; END")
+        raw = db.serialize()
+
+    with pytest.raises(ValueError, match="key or database"):
+        recovery._valid_database(raw, b"short")
+    with pytest.raises(ValueError, match="unsupported executable schema"):
+        recovery._valid_database(raw, b"s" * 32)
+
+
+def test_decode_backup_rejects_malformed_payload(tmp_path):
+    archive = tmp_path / "malformed.aegis-backup"
+    passphrase = "a-long-test-backup-passphrase"
+    salt = b"0" * 16
+    nonce = b"1" * 12
+    encrypted = (
+        recovery.MAGIC
+        + salt
+        + nonce
+        + AESGCM(recovery._key(passphrase, salt)).encrypt(
+            nonce, b'{"version":2,"files":{}}', recovery.MAGIC
+        )
+    )
+    archive.write_bytes(encrypted)
+
+    with pytest.raises(ValueError, match="authentication or contents"):
+        recovery.verify_backup(archive, passphrase)
+
+
+def test_restore_files_revokes_sessions_and_requires_approval(tmp_path):
+    init_db()
+    store.init_control()
+    auth.provision("operator", "a-unique-test-password")
+    database = recovery._db_snapshot()
+    secret = store.secret()
+    files = {"db/aegis.db": database, "control.key": secret}
+
+    restored = recovery._restore_files(files)
+
+    with sqlite3.connect(":memory:") as db:
+        db.deserialize(restored["db/aegis.db"])
+        if db.execute(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE name='auth_sessions'"
+        ).fetchone()[0]:
+            assert db.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0] == 0
