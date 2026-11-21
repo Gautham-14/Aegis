@@ -374,7 +374,8 @@ def test_vm_incident_completes_while_guest_work_is_held(monkeypatch):
     finally:
         release.set()
         channel.close()
-        server_sock.shutdown(socket.SHUT_RDWR)
+        with contextlib.suppress(OSError):
+            server_sock.shutdown(socket.SHUT_RDWR)
         bridge.join(2)
         server_stream.close()
         server_sock.close()
