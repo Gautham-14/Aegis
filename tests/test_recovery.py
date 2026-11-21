@@ -65,3 +65,38 @@ def test_backup_rejects_wrong_passphrase_tampering_and_bad_receipt(tmp_path):
         recovery.create_backup(
             tmp_path.parent / f"{tmp_path.name}-bad.aegis-backup", "a-long-test-backup-passphrase"
         )
+
+
+@pytest.mark.parametrize("passphrase", ["short", "x" * 257])
+def test_backup_passphrase_bounds(passphrase):
+    with pytest.raises(ValueError, match="16-256"):
+        recovery._key(passphrase, b"0" * 16)
+
+
+def test_backup_rejects_missing_database_and_bad_database_validation(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "missing.db")
+    with pytest.raises(ValueError, match="database exists"):
+        recovery._db_snapshot()
+    with pytest.raises(ValueError, match="invalid"):
+        recovery._valid_database(b"small", b"short")
+    with pytest.raises(ValueError, match="invalid"):
+        recovery._valid_database(b"x" * (recovery.MAX_PLAINTEXT + 1), b"x" * 32)
+
+
+def test_backup_rejects_bad_destinations_and_malformed_archives(tmp_path):
+    init_db()
+    store.init_control()
+    with pytest.raises(ValueError, match="outside"):
+        recovery.create_backup(config.DATA_DIR / "archive.aegis", "a-long-test-backup-passphrase")
+    missing_parent = tmp_path / "missing" / "archive.aegis"
+    with pytest.raises(ValueError, match="directory"):
+        recovery.create_backup(missing_parent, "a-long-test-backup-passphrase")
+
+    archive = tmp_path / "malformed.aegis"
+    archive.write_bytes(b"not an archive")
+    with pytest.raises(ValueError, match="unsupported|truncated"):
+        recovery.verify_backup(archive, "a-long-test-backup-passphrase")
+
+    archive.write_bytes(recovery.MAGIC + b"x")
+    with pytest.raises(ValueError, match="unsupported|truncated"):
+        recovery.verify_backup(archive, "a-long-test-backup-passphrase")
