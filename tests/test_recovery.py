@@ -65,3 +65,64 @@ def test_backup_rejects_wrong_passphrase_tampering_and_bad_receipt(tmp_path):
         recovery.create_backup(
             tmp_path.parent / f"{tmp_path.name}-bad.aegis-backup", "a-long-test-backup-passphrase"
         )
+
+
+@pytest.mark.parametrize("passphrase", ["", "too-short", "x" * 257])
+def test_backup_passphrase_bounds_are_rejected(passphrase):
+    with pytest.raises(ValueError, match="16-256"):
+        recovery._key(passphrase, b"\0" * 16)
+
+
+def test_backup_rejects_missing_database_and_invalid_database_values(tmp_path):
+    with pytest.raises(ValueError, match="No Aegis database"):
+        recovery._db_snapshot()
+    with pytest.raises(ValueError, match="invalid"):
+        recovery._valid_database(b"not-a-database", b"short")
+    init_db()
+    store.init_control()
+    with pytest.raises(ValueError, match="invalid"):
+        recovery._valid_database(b"not-a-database", bytes(32))
+
+
+def test_backup_validates_destination_and_archive_format(tmp_path):
+    inside = config.DATA_DIR / "archive.aegis-backup"
+    with pytest.raises(ValueError, match="outside"):
+        recovery.create_backup(inside, "a-long-test-backup-passphrase")
+    missing_parent = tmp_path / "missing" / "archive.aegis-backup"
+    with pytest.raises(ValueError, match="directory"):
+        recovery.create_backup(missing_parent, "a-long-test-backup-passphrase")
+
+    missing = tmp_path / "missing.aegis-backup"
+    with pytest.raises(ValueError, match="absent"):
+        recovery.verify_backup(missing, "a-long-test-backup-passphrase")
+    truncated = tmp_path / "truncated.aegis-backup"
+    truncated.write_bytes(recovery.MAGIC)
+    with pytest.raises(ValueError, match="truncated"):
+        recovery.verify_backup(truncated, "a-long-test-backup-passphrase")
+
+
+def test_managed_file_inventory_rejects_oversized_and_changed_files(monkeypatch, tmp_path):
+    knowledge = config.KNOWLEDGE_DIR
+    large = knowledge / "large.bin"
+    large.write_bytes(b"x")
+    monkeypatch.setattr(recovery, "MAX_PLAINTEXT", 0)
+    with pytest.raises(ValueError, match="Managed files"):
+        recovery._managed_files()
+
+    monkeypatch.setattr(recovery, "MAX_PLAINTEXT", 128 * 1024 * 1024)
+    changed = knowledge / "changed.bin"
+    changed.write_bytes(b"x")
+
+    class ShortRead:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, size):
+            return b""
+
+    monkeypatch.setattr(type(changed), "open", lambda self, *args, **kwargs: ShortRead())
+    with pytest.raises(ValueError, match="changed"):
+        recovery._managed_files()
