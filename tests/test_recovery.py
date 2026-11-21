@@ -65,3 +65,59 @@ def test_backup_rejects_wrong_passphrase_tampering_and_bad_receipt(tmp_path):
         recovery.create_backup(
             tmp_path.parent / f"{tmp_path.name}-bad.aegis-backup", "a-long-test-backup-passphrase"
         )
+
+
+def test_backup_rejects_invalid_key_database_and_missing_live_state():
+    with pytest.raises(ValueError, match="16-256"):
+        recovery._key("too-short", b"x" * 16)
+
+    with pytest.raises(ValueError, match="No Aegis database"):
+        recovery._db_snapshot()
+
+    with pytest.raises(ValueError, match="invalid"):
+        recovery._valid_database(b"not-a-database", b"short")
+
+    init_db()
+    store.init_control()
+    control_key = config.DATA_DIR / "control.key"
+    if control_key.exists():
+        control_key.unlink()
+    dpapi_key = config.DATA_DIR / "control.key.dpapi"
+    if dpapi_key.exists():
+        dpapi_key.unlink()
+    with pytest.raises(ValueError, match="Live control key is missing"):
+        recovery._payload()
+
+
+def test_backup_rejects_oversized_managed_files_and_invalid_destinations(monkeypatch, tmp_path):
+    init_db()
+    store.init_control()
+    managed = config.KNOWLEDGE_DIR / "large.txt"
+    managed.write_text("synthetic fixture", encoding="utf-8")
+    monkeypatch.setattr(recovery, "MAX_PLAINTEXT", 0)
+    with pytest.raises(ValueError, match="Managed files exceed"):
+        recovery._managed_files()
+
+    monkeypatch.setattr(recovery, "MAX_PLAINTEXT", 128 * 1024 * 1024)
+    with pytest.raises(ValueError, match="outside the live"):
+        recovery.create_backup(tmp_path / "archive.aegis-backup", "a-long-test-backup-passphrase")
+    with pytest.raises(ValueError, match="destination directory"):
+        recovery.create_backup(
+            tmp_path.parent / "missing-parent" / "archive.aegis-backup",
+            "a-long-test-backup-passphrase",
+        )
+
+
+@pytest.mark.parametrize(
+    ("contents", "match"),
+    [
+        (b"", "absent or exceeds"),
+        (b"short", "truncated"),
+    ],
+)
+def test_decode_backup_rejects_absent_and_truncated_archives(tmp_path, contents, match):
+    archive = tmp_path / "archive.aegis-backup"
+    if contents:
+        archive.write_bytes(contents)
+    with pytest.raises(ValueError, match=match):
+        recovery._decode_backup(archive, "a-long-test-backup-passphrase")
